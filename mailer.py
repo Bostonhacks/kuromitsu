@@ -9,6 +9,8 @@ import argparse
 from tqdm import tqdm
 import pickle
 from pathlib import Path
+import concurrent.futures
+import threading
 
 import base64
 from email.message import EmailMessage
@@ -28,6 +30,9 @@ SCOPES = [
         ]
 
 SENDER_NAME = "BostonHacks"
+
+# local storage for gmail services
+thread_local = threading.local()
 
 def read_data_file(file_path):
     """Read data from CSV or Excel file"""
@@ -71,6 +76,11 @@ def get_gmail_service():
     
     return build('gmail', 'v1', credentials=creds)
 
+def get_thread_gmail_service():
+    """Get Gmail API service for current thread"""
+    if not hasattr(thread_local, 'gmail_service'):
+        thread_local.gmail_service = get_gmail_service()
+    return thread_local.gmail_service
 
 def send_email(service, sender, recipient, subject, body, attachments=None):
     """Send an email using Gmail API with optional attachments"""
@@ -98,8 +108,43 @@ def send_email(service, sender, recipient, subject, body, attachments=None):
     service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
 
 
+def process_email(args):
+    """Process single email for concurrent execution"""
+    index, row, email_column, template, df_columns, sender, subject, attachments, test_mode = args
+
+    recipient = row[email_column]
+
+    # Skip invalid emails
+    if not isinstance(recipient, str) or '@' not in recipient:
+        print(f"Skipping invalid email: {recipient}")
+        return (index, False, f"Invalid email: {recipient}")
+    
+    # Personalize email if template has placeholders
+    email_body = template
+    if template:
+        # Replace any column name in curly braces with the value from the row
+        for col in df_columns:
+            placeholder = f"{{{col}}}"
+            if placeholder in template:
+                email_body = email_body.replace(placeholder, str(row[col]))
+    else:
+        email_body = f"Hello {recipient},\n\nThis is a message from BostonHacks."
+    
+    try:
+        if not test_mode:
+            service = get_thread_gmail_service()
+            send_email(service, sender, recipient, subject, email_body, attachments)
+            return (index, True, recipient)
+
+        else:
+            return (index, True, f"Would send to: {recipient}")
+    except Exception as e:
+        return (index, False, f"Error sending to {recipient}: {str(e)}")
+
+
+
 def send_batch_emails(data_file, email_column, template_file=None, subject=None, 
-                      attachments=None, test_mode=False, limit=None, delay=2):
+                      attachments=None, test_mode=False, limit=None, delay=2, max_workers=20, batch_size=50):
     """Send batch emails using data from a file"""
     
     # Read the data file
@@ -155,40 +200,79 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
     
     # Process each recipient
     success_count = 0
-    for index, row in tqdm(emails_to_send.iterrows(), total=total, desc="Sending emails"):
-        recipient = row[email_column]
-        
-        # Skip invalid emails
-        if not isinstance(recipient, str) or '@' not in recipient:
-            print(f"Skipping invalid email: {recipient}")
-            continue
-        
-        # Personalize email if template has placeholders
-        email_body = template
-        if template:
-            # Replace any column name in curly braces with the value from the row
-            for col in df.columns:
-                placeholder = f"{{{col}}}"
-                if placeholder in template:
-                    email_body = email_body.replace(placeholder, str(row[col]))
-        else:
-            email_body = f"Hello {recipient},\n\nThis is a message from BostonHacks."
-        
-        try:
-            if not test_mode:
-                send_email(service, sender, recipient, subject, email_body, attachments)
-                success_count += 1
-                # Add delay to avoid hitting send limits
-                if index < total - 1:  # No need to delay after the last email
-                    time.sleep(delay)
-            else:
-                # In test mode, just print what would be sent
-                print(f"Would send to: {recipient}")
-                success_count += 1
-        except Exception as e:
-            print(f"Error sending to {recipient}: {str(e)}")
-    
+    failure_count = 0
+
+    df_columns = df.columns.tolist()
+
+    # arg list for each email
+    email_tasks = [
+        (index, row, email_column, template, df_columns, sender, subject, attachments, test_mode)
+        for index, row in emails_to_send.iterrows()
+    ]
+
+    """threaded version"""
+    batches = [email_tasks[i:i + batch_size] for i in range(0, len(email_tasks), batch_size)]
+
+    pbar = tqdm(total=total, desc="Sending emails")
+
+    for batch in batches:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_email, args) for args in batch]
+
+            for future in concurrent.futures.as_completed(futures):
+                index, success, message = future.result()
+                if success:
+                    success_count += 1
+                else:
+                    failure_count += 1
+                    print(f"Error sending to {index}: {message}")
+                pbar.update(1)
+
+        # Add delay to avoid hitting limits
+        if len(batches) > 1:
+            time.sleep(delay)
+
+    pbar.close()
     print(f"\nCompleted: {success_count} of {total} emails {'would be ' if test_mode else ''}sent successfully")
+    if failure_count > 0:
+        print(f"Failed: {failure_count} emails")
+
+    
+    """synchronous version"""
+    # for index, row in tqdm(emails_to_send.iterrows(), total=total, desc="Sending emails"):
+    #     recipient = row[email_column]
+        
+    #     # Skip invalid emails
+    #     if not isinstance(recipient, str) or '@' not in recipient:
+    #         print(f"Skipping invalid email: {recipient}")
+    #         continue
+        
+    #     # Personalize email if template has placeholders
+    #     email_body = template
+    #     if template:
+    #         # Replace any column name in curly braces with the value from the row
+    #         for col in df.columns:
+    #             placeholder = f"{{{col}}}"
+    #             if placeholder in template:
+    #                 email_body = email_body.replace(placeholder, str(row[col]))
+    #     else:
+    #         email_body = f"Hello {recipient},\n\nThis is a message from BostonHacks."
+        
+    #     try:
+    #         if not test_mode:
+    #             send_email(service, sender, recipient, subject, email_body, attachments)
+    #             success_count += 1
+    #             # Add delay to avoid hitting send limits
+    #             if index < total - 1:  # No need to delay after the last email
+    #                 time.sleep(delay)
+    #         else:
+    #             # In test mode, just print what would be sent
+    #             print(f"Would send to: {recipient}")
+    #             success_count += 1
+    #     except Exception as e:
+    #         print(f"Error sending to {recipient}: {str(e)}")
+
+    # print(f"\nCompleted: {success_count} of {total} emails {'would be ' if test_mode else ''}sent successfully")
 
 
 if __name__ == "__main__":
@@ -201,7 +285,9 @@ if __name__ == "__main__":
     parser.add_argument("--test", action="store_true", help="Run in test mode without sending emails")
     parser.add_argument("--limit", type=int, help="Limit number of emails to send")
     parser.add_argument("--delay", type=float, default=2, help="Delay between emails in seconds (default: 2)")
-    
+    parser.add_argument("--workers", type=int, default=20, help="Number of concurrent workers (default: 10)")
+    parser.add_argument("--batch-size", type=int, default=50, help="Number of emails to send in each batch (default: 100)") 
+
     args = parser.parse_args()
     
     send_batch_emails(
@@ -212,5 +298,7 @@ if __name__ == "__main__":
         args.attachments,
         args.test,
         args.limit,
-        args.delay
+        args.delay,
+        args.workers,
+        args.batch_size
     )
