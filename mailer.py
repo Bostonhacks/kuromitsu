@@ -9,13 +9,25 @@ import argparse
 from tqdm import tqdm
 import pickle
 from pathlib import Path
+
+import base64
+from email.message import EmailMessage
+
+import google.auth
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.errors import HttpError
+
 from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 
 # Gmail API scopes
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+SCOPES = [
+            'https://www.googleapis.com/auth/gmail.compose'
+        ]
+
+SENDER_NAME = "BostonHacks"
 
 def read_data_file(file_path):
     """Read data from CSV or Excel file"""
@@ -26,7 +38,7 @@ def read_data_file(file_path):
     else:
         raise ValueError("Unsupported file format. Please use .csv, .xlsx, or .xls")
 
-
+# https://developers.google.com/workspace/gmail/api/quickstart/python
 def get_gmail_service():
     """Get authenticated Gmail API service"""
     creds = None
@@ -63,7 +75,7 @@ def get_gmail_service():
 def send_email(service, sender, recipient, subject, body, attachments=None):
     """Send an email using Gmail API with optional attachments"""
     msg = MIMEMultipart()
-    msg['From'] = sender
+    msg['From'] = f"{SENDER_NAME} <{sender}>"
     msg['To'] = recipient
     msg['Subject'] = subject
     
@@ -120,6 +132,8 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
     except Exception as e:
         print(f"Authentication failed: {str(e)}")
         return
+    
+
     
     # Set default subject if not provided
     if not subject:

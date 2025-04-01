@@ -1,3 +1,6 @@
 .venv
 .DS_Store
 test.csv
+credentials.json
+__pycache__
+token.pickle
