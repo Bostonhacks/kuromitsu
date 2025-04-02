@@ -79,6 +79,7 @@ def get_gmail_service():
 def get_thread_gmail_service():
     """Get Gmail API service for current thread"""
     if not hasattr(thread_local, 'gmail_service'):
+        # print("Creating new Gmail service for thread")
         thread_local.gmail_service = get_gmail_service()
     return thread_local.gmail_service
 
@@ -105,7 +106,43 @@ def send_email(service, sender, recipient, subject, body, attachments=None):
     raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
     
     # Send the message
-    service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+    try:
+
+        response = service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+        # print(response)
+
+        return True, f"Email sent successfully to {recipient}"
+    
+    
+
+        # message_id = response.get("id")
+
+        # if message_id:
+        #     message = service.users().messages().get(userId='me', id=message_id).execute()
+
+        #     labels = message.get("labelIds", [])
+        #     if "SENT" not in labels:
+        #         raise Exception("Email not sent successfully")
+        #     return True, f"Email sent successfully to {recipient} with message ID: {message_id}"
+
+    except HttpError as error:
+        # Handle specific Gmail API errors
+        if error.resp.status == 400:
+            # This could be a malformed email address or other request issue
+            return False, f"Invalid request: {str(error)}"
+        elif error.resp.status == 403:
+            return False, f"Permission denied: {str(error)}"
+        elif error.resp.status == 404:
+            return False, f"Resource not found: {str(error)}"
+        elif error.resp.status == 429:
+            return False, "Rate limit exceeded. Try again later."
+        else:
+            return False, f"Gmail API error: {str(error)}"
+    except Exception as e:
+        # Handle other exceptions
+        return False, f"An error occurred: {str(e)}"
+
+        
 
 
 def process_email(args):
@@ -144,11 +181,22 @@ def process_email(args):
 
 
 def send_batch_emails(data_file, email_column, template_file=None, subject=None, 
-                      attachments=None, test_mode=False, limit=None, delay=2, max_workers=20, batch_size=50):
+                      attachments=None, test_mode=False, limit=None, delay=20, max_workers=20, batch_size=50):
     """Send batch emails using data from a file"""
     
     # Read the data file
     df = read_data_file(data_file)
+
+    # create output directory
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
+
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    output_subdir = Path("output", f"output_{timestamp}")
+    output_subdir.mkdir(exist_ok=True)
+    
+    output_file_all = output_subdir / f"output.csv"
+    output_file_failure = output_subdir / f"output_failure.csv"
     
     # Ensure email column exists
     if email_column not in df.columns:
@@ -204,6 +252,13 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
 
     df_columns = df.columns.tolist()
 
+    # results df
+    results_df = emails_to_send.copy()
+    results_df["success"] = False
+    results_df["timestamp"] = None
+    results_df["message"] = ""
+    results_df["subject"] = subject
+
     # arg list for each email
     email_tasks = [
         (index, row, email_column, template, df_columns, sender, subject, attachments, test_mode)
@@ -223,10 +278,16 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
                 index, success, message = future.result()
                 if success:
                     success_count += 1
+                    results_df.at[index, "success"] = True
+                    results_df.at[index, "message"] = message
                 else:
                     failure_count += 1
+                    results_df.at[index, "success"] = False
+                    results_df.at[index, "message"] = message
                     print(f"Error sending to {index}: {message}")
                 pbar.update(1)
+
+                results_df.at[index, "timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
         # Add delay to avoid hitting limits
         if len(batches) > 1:
@@ -236,6 +297,11 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
     print(f"\nCompleted: {success_count} of {total} emails {'would be ' if test_mode else ''}sent successfully")
     if failure_count > 0:
         print(f"Failed: {failure_count} emails")
+
+    # save results to CSV
+    results_df.to_csv(output_file_all, index=False)
+    results_df[~results_df["success"]].to_csv(output_file_failure, index=False)
+    return output_file_all, output_file_failure
 
     
     """synchronous version"""
@@ -284,13 +350,13 @@ if __name__ == "__main__":
     parser.add_argument("--attachments", nargs='+', help="Paths to files to attach")
     parser.add_argument("--test", action="store_true", help="Run in test mode without sending emails")
     parser.add_argument("--limit", type=int, help="Limit number of emails to send")
-    parser.add_argument("--delay", type=float, default=2, help="Delay between emails in seconds (default: 2)")
-    parser.add_argument("--workers", type=int, default=20, help="Number of concurrent workers (default: 10)")
-    parser.add_argument("--batch-size", type=int, default=50, help="Number of emails to send in each batch (default: 100)") 
+    parser.add_argument("--delay", type=float, default=20, help="Delay between emails in seconds (default: 20)")
+    parser.add_argument("--workers", type=int, default=20, help="Number of concurrent workers (default: 20)")
+    parser.add_argument("--batch-size", type=int, default=50, help="Number of emails to send in each batch (default: 50)") 
 
     args = parser.parse_args()
     
-    send_batch_emails(
+    output_all, output_errors = send_batch_emails(
         args.data_file, 
         args.email_column,
         args.template, 
@@ -302,3 +368,7 @@ if __name__ == "__main__":
         args.workers,
         args.batch_size
     )
+
+    if output_all or output_errors:
+        print(f"Output files containing success/failure emails: {output_all}")
+        print(f"Output files containing failed emails: {output_errors}")

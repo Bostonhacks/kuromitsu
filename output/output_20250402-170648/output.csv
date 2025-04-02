@@ -1,0 +1,6 @@
+first_name,last_name,email,university,major,year,success,timestamp,message,subject
+derk,boi,dxu0117@bu.edu,WWWWWWUni,Somerandommjaor,2025,True,2025-04-02 17:06:52,dxu0117@bu.edu,This is a correction test batch email
+deee,ssss,burnerdx0@gmail.com,WowUNI,SomeMajor,2025,True,2025-04-02 17:06:51,burnerdx0@gmail.com,This is a correction test batch email
+Declan,Young,declanyg@bu124125.eawefdu,BU,CS,2026,True,2025-04-02 17:06:51,declanyg@bu124125.eawefdu,This is a correction test batch email
+Wyatt,Napier,wnapier,BU,CS,2026,False,2025-04-02 17:06:51,Invalid email: wnapier,This is a correction test batch email
+Audrey,Wang,axwang@bu152125.eawefdu,BU,ME,2026,True,2025-04-02 17:06:52,axwang@bu152125.eawefdu,This is a correction test batch email

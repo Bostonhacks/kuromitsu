@@ -1,5 +1,5 @@
 # Kuromitsu
-A CLI tool for mass mailing templated emails.
+A CLI tool for mass mailing templated emails. By default, it adds a 20 second delay in between batches of 50 sent emails to avoid hitting Gmail API's rate limit. You change change this delay or batch size with `--delay` and `--batch-size` respectively
 
 
 # Getting started
@@ -25,6 +25,25 @@ Ensure you're using the virtual env by invoking `pip -V`. Check the path to be w
 usage: mailer.py [-h] [--template TEMPLATE] [--subject SUBJECT] [--attachments ATTACHMENTS [ATTACHMENTS ...]] [--test]
                  [--limit LIMIT] [--delay DELAY] [--workers WORKERS] [--batch-size BATCH_SIZE]
                  data_file email_column
+
+Send batch emails from a CSV or Excel file
+
+positional arguments:
+  data_file             Path to CSV or Excel file with recipient data
+  email_column          Column name containing email addresses
+
+options:
+  -h, --help            show this help message and exit
+  --template TEMPLATE   Path to HTML email template file
+  --subject SUBJECT     Email subject line
+  --attachments ATTACHMENTS [ATTACHMENTS ...]
+                        Paths to files to attach
+  --test                Run in test mode without sending emails
+  --limit LIMIT         Limit number of emails to send
+  --delay DELAY         Delay between emails in seconds (default: 20)
+  --workers WORKERS     Number of concurrent workers (default: 20)
+  --batch-size BATCH_SIZE
+                        Number of emails to send in each batch (default: 50)
 ```
 An example
 ```bash
