@@ -5,3 +5,4 @@ credentials.json
 __pycache__
 token.pickle
 test2.csv
+output/
