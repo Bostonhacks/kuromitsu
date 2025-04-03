@@ -83,12 +83,16 @@ def get_thread_gmail_service():
         thread_local.gmail_service = get_gmail_service()
     return thread_local.gmail_service
 
-def send_email(service, sender, recipient, subject, body, attachments=None):
+def send_email(service, sender, recipient, subject, body, attachments=None, reply_to=None):
     """Send an email using Gmail API with optional attachments"""
     msg = MIMEMultipart()
     msg['From'] = f"{SENDER_NAME} <{sender}>"
     msg['To'] = recipient
     msg['Subject'] = subject
+
+    # Set Reply-To header if provided
+    if reply_to:
+        msg["Reply-To"] = reply_to
     
     # Attach body text
     msg.attach(MIMEText(body, 'html'))
@@ -147,7 +151,7 @@ def send_email(service, sender, recipient, subject, body, attachments=None):
 
 def process_email(args):
     """Process single email for concurrent execution"""
-    index, row, email_column, template, df_columns, sender, subject, attachments, test_mode = args
+    index, row, email_column, template, df_columns, sender, subject, attachments, reply_to, test_mode = args
 
     recipient = row[email_column]
 
@@ -170,7 +174,13 @@ def process_email(args):
     try:
         if not test_mode:
             service = get_thread_gmail_service()
-            send_email(service, sender, recipient, subject, email_body, attachments)
+            send_email(service=service,
+                       sender=sender,
+                       recipient=recipient,
+                       subject=subject,
+                       body=email_body,
+                       attachments=attachments,
+                       reply_to=reply_to)
             return (index, True, recipient)
 
         else:
@@ -180,7 +190,7 @@ def process_email(args):
 
 
 
-def send_batch_emails(data_file, email_column, template_file=None, subject=None, 
+def send_batch_emails(data_file, email_column, template_file=None, subject=None, reply_to=None,
                       attachments=None, test_mode=False, limit=None, delay=20, max_workers=20, batch_size=50):
     """Send batch emails using data from a file"""
     
@@ -261,7 +271,7 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
 
     # arg list for each email
     email_tasks = [
-        (index, row, email_column, template, df_columns, sender, subject, attachments, test_mode)
+        (index, row, email_column, template, df_columns, sender, subject, attachments, reply_to, test_mode)
         for index, row in emails_to_send.iterrows()
     ]
 
@@ -271,6 +281,7 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
     pbar = tqdm(total=total, desc="Sending emails")
 
     for batch in batches:
+        # execute email tasks in batch with threadpool
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_email, args) for args in batch]
 
@@ -345,6 +356,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Send batch emails from a CSV or Excel file")
     parser.add_argument("data_file", help="Path to CSV or Excel file with recipient data")
     parser.add_argument("email_column", help="Column name containing email addresses")
+    parser.add_argument("--reply-to", help="Reply-To email address")
     parser.add_argument("--template", help="Path to HTML email template file")
     parser.add_argument("--subject", help="Email subject line")
     parser.add_argument("--attachments", nargs='+', help="Paths to files to attach")
@@ -357,16 +369,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     output_all, output_errors = send_batch_emails(
-        args.data_file, 
-        args.email_column,
-        args.template, 
-        args.subject, 
-        args.attachments,
-        args.test,
-        args.limit,
-        args.delay,
-        args.workers,
-        args.batch_size
+        data_file=args.data_file,
+        email_column=args.email_column,
+        template_file=args.template,
+        subject=args.subject,
+        reply_to=args.reply_to,
+        attachments=args.attachments,
+
+        test_mode=args.test,
+        limit=args.limit,
+        delay=args.delay,
+        max_workers=args.workers,
+        batch_size=args.batch_size
     )
 
     if output_all or output_errors:
