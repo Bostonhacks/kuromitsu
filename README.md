@@ -1,5 +1,7 @@
 # Kuromitsu
-A CLI tool for mass mailing templated emails. By default, it adds a 20 second delay in between batches of 50 sent emails to avoid hitting Gmail API's rate limit. You change change this delay or batch size with `--delay` and `--batch-size` respectively
+A CLI tool for mass mailing templated emails. By default, it adds a 20 second delay in between batches of 50 sent emails to avoid hitting Gmail API's rate limit. You change change this delay or batch size with `--delay` and `--batch-size` respectively. 
+
+Currently all emails are sent with name "BostonHacks" (even though you can change the send-from email address). 
 
 
 # Getting started
@@ -22,11 +24,14 @@ Ensure you're using the virtual env by invoking `pip -V`. Check the path to be w
    1) Anytime the wildcard `{ variable }` is used, you must add that as a column to a csv file. So if { name } is used in the HTMl template, add a `name` column to the .csv file
 6) Invoke mailer.py with the following 
 ```bash
-usage: mailer.py [-h] [--reply-to REPLY_TO] [--template TEMPLATE] [--subject SUBJECT] [--attachments ATTACHMENTS [ATTACHMENTS ...]] [--test] [--limit LIMIT] [--delay DELAY]
-                 [--workers WORKERS] [--batch-size BATCH_SIZE]
+usage: mailer.py [-h] [--send-as SEND_AS] [--reply-to REPLY_TO]
+                 [--template TEMPLATE] [--subject SUBJECT]
+                 [--attachments ATTACHMENTS [ATTACHMENTS ...]] [--test]
+                 [--limit LIMIT] [--delay DELAY] [--workers WORKERS]
+                 [--batch-size BATCH_SIZE]
                  data_file email_column
 
-Send batch emails from a CSV or Excel file. Sends email via Gmail API using any Google authenticated account.
+Send batch emails from a CSV or Excel file
 
 positional arguments:
   data_file             Path to CSV or Excel file with recipient data
@@ -34,6 +39,8 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --send-as SEND_AS     Send-as email address. Also serves as reply-to unless
+                        specified otherwise. Must be a valid alias on gmail account
   --reply-to REPLY_TO   Reply-To email address
   --template TEMPLATE   Path to HTML email template file
   --subject SUBJECT     Email subject line
@@ -48,7 +55,7 @@ options:
 ```
 An example
 ```bash
-python mailer.py <path/to/data.csv> <email_column_name> --reply-to "BostonHacks <contact@bostonhacks.org>" --subject "BostonHacks 2025 Updates" --template <path/to/template.html> --attachments <path/to/file> <path/to/file2> --delay 10
+python mailer.py <path/to/data.csv> <email_column_name> --send-as "contact@bostonhacks.org" --subject "BostonHacks 2025 Updates" --template <path/to/template.html> --attachments <path/to/file> <path/to/file2> --delay 10
 ```
 This will open the data.csv with all the emails and their associated information, read the email column, set the subject of the email, use the HTMl template specified, and attach the files. Emails will be sent in batches with a delay of 10 seconds in between them to avoid rate limits.
 

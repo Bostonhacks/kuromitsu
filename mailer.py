@@ -26,7 +26,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 # Gmail API scopes
 SCOPES = [
-            'https://www.googleapis.com/auth/gmail.compose'
+            'https://www.googleapis.com/auth/gmail.compose',
+            "https://www.googleapis.com/auth/gmail.settings.basic"
         ]
 
 SENDER_NAME = "BostonHacks"
@@ -180,7 +181,8 @@ def process_email(args):
                        subject=subject,
                        body=email_body,
                        attachments=attachments,
-                       reply_to=reply_to)
+                       reply_to=reply_to
+                       )
             return (index, True, recipient)
 
         else:
@@ -190,7 +192,7 @@ def process_email(args):
 
 
 
-def send_batch_emails(data_file, email_column, template_file=None, subject=None, reply_to=None,
+def send_batch_emails(data_file, email_column, template_file=None, subject=None, reply_to=None, send_as=None,
                       attachments=None, test_mode=False, limit=None, delay=20, max_workers=20, batch_size=50):
     """Send batch emails using data from a file"""
     
@@ -224,6 +226,7 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
         service = get_gmail_service()
         # Get sender email from OAuth profile
         profile = service.users().getProfile(userId='me').execute()
+        # print(profile)
         sender = profile['emailAddress']
         
         if not sender.endswith('@gmail.com'):
@@ -231,10 +234,26 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
             confirm = input("Continue with this email? (yes/no): ").lower()
             if confirm != 'yes':
                 print("Operation cancelled")
-                return
+                return None, None
+            
+        # if using an alias, check if alias is valid
+        if send_as:
+            addresses = service.users().settings().sendAs().list(userId="me").execute()
+            # print(addresses)
+            send_as_addresses = addresses.get("sendAs", [])
+
+            valid_aliases = [sendAs["sendAsEmail"] for sendAs in send_as_addresses]
+
+            if send_as not in valid_aliases:
+                print(f"{send_as} is not a valid alias to send as")
+                print(f"Valid send-as addresses: {", ".join(valid_aliases)}")
+                return None, None
+            
+            sender = send_as
+        
     except Exception as e:
         print(f"Authentication failed: {str(e)}")
-        return
+        return None, None
     
 
     
@@ -356,6 +375,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Send batch emails from a CSV or Excel file")
     parser.add_argument("data_file", help="Path to CSV or Excel file with recipient data")
     parser.add_argument("email_column", help="Column name containing email addresses")
+    parser.add_argument("--send-as", help="Send-as email address. Also serves as reply-to unless specified otherwise. Must be a valid alias on gmail account")
     parser.add_argument("--reply-to", help="Reply-To email address")
     parser.add_argument("--template", help="Path to HTML email template file")
     parser.add_argument("--subject", help="Email subject line")
@@ -374,6 +394,7 @@ if __name__ == "__main__":
         template_file=args.template,
         subject=args.subject,
         reply_to=args.reply_to,
+        send_as=args.send_as,
         attachments=args.attachments,
 
         test_mode=args.test,
