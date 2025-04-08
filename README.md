@@ -1,5 +1,5 @@
 # Kuromitsu
-A CLI tool for mass mailing templated emails. By default, it adds a 20 second delay in between batches of 50 sent emails to avoid hitting Gmail API's rate limit. You change change this delay or batch size with `--delay` and `--batch-size` respectively. 
+A CLI tool for mass mailing templated emails. By default, it includes a small batch of emails sent at a time with a delay between batches. Tentatively, this is set to batches of 2 (handled by a Thread pool of size 2) with a delay of 1s between each batch. This is a very conservative number that keeps API rate usage down to roughly 120 emails/minute (under the 250 units/sec by Gmail API). The small batch size ensures we aren't hitting usage limits per second as well. 
 
 Currently all emails are sent with name "BostonHacks" (even though you can change the send-from email address). 
 

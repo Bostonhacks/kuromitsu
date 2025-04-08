@@ -216,7 +216,7 @@ def process_email(args):
 
 
 def send_batch_emails(data_file, email_column, template_file=None, subject=None, reply_to=None, send_as=None,
-                      attachments=None, test_mode=False, limit=None, delay=6, max_workers=10, batch_size=10):
+                      attachments=None, test_mode=False, limit=None, delay=1, max_workers=2, batch_size=2):
     """Send batch emails using data from a file"""
     
     # Read the data file
@@ -411,9 +411,9 @@ if __name__ == "__main__":
     parser.add_argument("--attachments", nargs='+', help="Paths to files to attach")
     parser.add_argument("--test", action="store_true", help="Run in test mode without sending emails")
     parser.add_argument("--limit", type=int, help="Limit number of emails to send")
-    parser.add_argument("--delay", type=float, default=6, help="Delay between emails in seconds (default: 6)")
-    parser.add_argument("--workers", type=int, default=10, help="Number of concurrent workers (default: 10)")
-    parser.add_argument("--batch-size", type=int, default=10, help="Number of emails to send in each batch (default: 10)") 
+    parser.add_argument("--delay", type=float, default=1, help="Delay between emails in seconds (default: 1)")
+    parser.add_argument("--workers", type=int, default=2, help="Number of concurrent workers (default: 2)")
+    parser.add_argument("--batch-size", type=int, default=2, help="Number of emails to send in each batch (default: 2)") 
 
     args = parser.parse_args()
     
