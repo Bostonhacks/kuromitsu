@@ -6,3 +6,4 @@ __pycache__
 token.pickle
 test2.csv
 output/
+data/*

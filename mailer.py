@@ -27,7 +27,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 # Gmail API scopes
 SCOPES = [
             'https://www.googleapis.com/auth/gmail.compose',
-            "https://www.googleapis.com/auth/gmail.settings.basic"
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.readonly"
         ]
 
 SENDER_NAME = "BostonHacks"
@@ -114,9 +115,25 @@ def send_email(service, sender, recipient, subject, body, attachments=None, repl
     try:
 
         response = service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+        message_id = response.get("id")
+
+        if message_id:
+            # done with threading so can wait for response
+            time.sleep(1)
+
+            message = service.users().messages().get(userId="me", id=message_id).execute()
+            labels = message.get("labelIds", [])
+
+            print(labels)
+
+            if "SENT" in labels:
+                return True, f"Email sent successfully to {recipient}"
+            else:
+                return False, f"Email to {recipient} was created but not confirmed as sent"
         # print(response)
 
-        return True, f"Email sent successfully to {recipient}"
+        else:
+            return False, f"No message ID when sending to {recipient}"
     
     
 
@@ -171,11 +188,11 @@ def process_email(args):
                 email_body = email_body.replace(placeholder, str(row[col]))
     else:
         email_body = f"Hello {recipient},\n\nThis is a message from BostonHacks."
-    
+
     try:
         if not test_mode:
             service = get_thread_gmail_service()
-            send_email(service=service,
+            success, message = send_email(service=service,
                        sender=sender,
                        recipient=recipient,
                        subject=subject,
@@ -183,7 +200,11 @@ def process_email(args):
                        attachments=attachments,
                        reply_to=reply_to
                        )
-            return (index, True, recipient)
+            
+            if success: 
+                return (index, True, recipient)
+            else:
+                return (index, False, message)
 
         else:
             return (index, True, f"Would send to: {recipient}")
@@ -193,7 +214,7 @@ def process_email(args):
 
 
 def send_batch_emails(data_file, email_column, template_file=None, subject=None, reply_to=None, send_as=None,
-                      attachments=None, test_mode=False, limit=None, delay=20, max_workers=20, batch_size=50):
+                      attachments=None, test_mode=False, limit=None, delay=8, max_workers=20, batch_size=20):
     """Send batch emails using data from a file"""
     
     # Read the data file
@@ -297,6 +318,12 @@ def send_batch_emails(data_file, email_column, template_file=None, subject=None,
     """threaded version"""
     batches = [email_tasks[i:i + batch_size] for i in range(0, len(email_tasks), batch_size)]
 
+    # just for debugging
+    # for batch in batches:
+    #     print(len(batch))
+
+    # return None, None
+
     pbar = tqdm(total=total, desc="Sending emails")
 
     for batch in batches:
@@ -382,9 +409,9 @@ if __name__ == "__main__":
     parser.add_argument("--attachments", nargs='+', help="Paths to files to attach")
     parser.add_argument("--test", action="store_true", help="Run in test mode without sending emails")
     parser.add_argument("--limit", type=int, help="Limit number of emails to send")
-    parser.add_argument("--delay", type=float, default=20, help="Delay between emails in seconds (default: 20)")
+    parser.add_argument("--delay", type=float, default=8, help="Delay between emails in seconds (default: 8)")
     parser.add_argument("--workers", type=int, default=20, help="Number of concurrent workers (default: 20)")
-    parser.add_argument("--batch-size", type=int, default=50, help="Number of emails to send in each batch (default: 50)") 
+    parser.add_argument("--batch-size", type=int, default=20, help="Number of emails to send in each batch (default: 20)") 
 
     args = parser.parse_args()
     
