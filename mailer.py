@@ -118,19 +118,21 @@ def send_email(service, sender, recipient, subject, body, attachments=None, repl
         message_id = response.get("id")
 
         if message_id:
-            # done with threading so can wait for response
-            time.sleep(1)
+            # # done with threading so can wait for response
+            # time.sleep(1)
 
-            message = service.users().messages().get(userId="me", id=message_id).execute()
-            labels = message.get("labelIds", [])
+            # message = service.users().messages().get(userId="me", id=message_id).execute()
+            # labels = message.get("labelIds", [])
 
-            print(labels)
+            # print(labels)
 
-            if "SENT" in labels:
-                return True, f"Email sent successfully to {recipient}"
-            else:
-                return False, f"Email to {recipient} was created but not confirmed as sent"
-        # print(response)
+            # if "SENT" in labels:
+            #     return True, f"Email sent successfully to {recipient}"
+            # else:
+            #     return False, f"Email to {recipient} was created but not confirmed as sent"
+
+            return True, f"Email sent successfully to {recipient}"
+            # print(response)
 
         else:
             return False, f"No message ID when sending to {recipient}"
@@ -214,7 +216,7 @@ def process_email(args):
 
 
 def send_batch_emails(data_file, email_column, template_file=None, subject=None, reply_to=None, send_as=None,
-                      attachments=None, test_mode=False, limit=None, delay=8, max_workers=20, batch_size=20):
+                      attachments=None, test_mode=False, limit=None, delay=6, max_workers=10, batch_size=10):
     """Send batch emails using data from a file"""
     
     # Read the data file
@@ -409,9 +411,9 @@ if __name__ == "__main__":
     parser.add_argument("--attachments", nargs='+', help="Paths to files to attach")
     parser.add_argument("--test", action="store_true", help="Run in test mode without sending emails")
     parser.add_argument("--limit", type=int, help="Limit number of emails to send")
-    parser.add_argument("--delay", type=float, default=8, help="Delay between emails in seconds (default: 8)")
-    parser.add_argument("--workers", type=int, default=20, help="Number of concurrent workers (default: 20)")
-    parser.add_argument("--batch-size", type=int, default=20, help="Number of emails to send in each batch (default: 20)") 
+    parser.add_argument("--delay", type=float, default=6, help="Delay between emails in seconds (default: 6)")
+    parser.add_argument("--workers", type=int, default=10, help="Number of concurrent workers (default: 10)")
+    parser.add_argument("--batch-size", type=int, default=10, help="Number of emails to send in each batch (default: 10)") 
 
     args = parser.parse_args()
     

@@ -48,14 +48,14 @@ options:
                         Paths to files to attach
   --test                Run in test mode without sending emails
   --limit LIMIT         Limit number of emails to send
-  --delay DELAY         Delay between emails in seconds (default: 20)
-  --workers WORKERS     Number of concurrent workers (default: 20)
+  --delay DELAY         Delay between emails in seconds (default: 6)
+  --workers WORKERS     Number of concurrent workers (default: 10)
   --batch-size BATCH_SIZE
-                        Number of emails to send in each batch (default: 50)
+                        Number of emails to send in each batch (default: 10)
 ```
 An example
 ```bash
-python mailer.py <path/to/data.csv> <email_column_name> --send-as "contact@bostonhacks.org" --subject "BostonHacks 2025 Updates" --template <path/to/template.html> --attachments <path/to/file> <path/to/file2> --delay 10
+python mailer.py <path/to/data.csv> <email_column_name> --send-as "contact@bostonhacks.org" --subject "BostonHacks 2025 Updates" --template <path/to/template.html> --attachments <path/to/file> <path/to/file2>
 ```
 This will open the data.csv with all the emails and their associated information, read the email column, set the subject of the email, use the HTMl template specified, and attach the files. Emails will be sent in batches with a delay of 10 seconds in between them to avoid rate limits.
 
